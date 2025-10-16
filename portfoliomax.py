@@ -69,16 +69,22 @@ with st.sidebar:
 # Interfaccia Principale
 st.write("Inserisci gli asset separati da virgole (es. TSLA, MSFT, GLD) e ottieni l'allocazione ottimale.")
 
-assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD", help="Esempi: TSLA, MSFT, GLD, NVDA")
+assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD", help="Esempi: TSLA, MSFT, GLD, NVDA. Usa SLV per argento, SI=F per futures.")
 assets = [asset.strip() for asset in assets_input.split(',')]
 
 if st.button("Calcola", type="primary"):
-    # Scarica dati
+    # Scarica dati con gestione asset non validi
     with st.spinner("Sto scaricando dati reali..."):
         try:
             data = yf.download(assets, period='5y', auto_adjust=False)['Close']
-            if data.empty or data.isna().all().all():
-                st.error("Errore: Nessun dato scaricato. Controlla i simboli.")
+            # Controlla asset con dati vuoti
+            empty_assets = [asset for asset in assets if data[asset].isna().all()]
+            if empty_assets:
+                st.warning(f"Asset non validi o senza dati: {', '.join(empty_assets)}. Suggerimenti: Usa SLV per argento, SI=F per futures. Proseguo con gli altri.")
+                data = data.dropna(axis=1, how='all')  # Rimuovi colonne vuote
+                assets = [asset for asset in assets if asset not in empty_assets]  # Aggiorna lista asset
+            if data.empty or data.shape[1] < 2:
+                st.error("Errore: Nessun dato scaricato per almeno 2 asset validi. Controlla i simboli.")
                 st.stop()
         except Exception as e:
             st.error(f"Errore nel download: {e}")
@@ -87,7 +93,7 @@ if st.button("Calcola", type="primary"):
     # Calcola rendimenti con validazioni
     returns = data.pct_change(fill_method=None).dropna()
     if len(returns) < 2 or np.any(returns.isna()):
-        st.error("Errore: Dati insufficienti o non validi dopo il download.")
+        st.error("Errore: Dati insufficienti o non validi dopo il download. Prova meno asset o controlla i simboli.")
         st.stop()
 
     expected_returns = returns.mean() * 252
@@ -95,7 +101,7 @@ if st.button("Calcola", type="primary"):
 
     # Validazione dati
     if np.any(np.isnan(expected_returns)) or np.any(np.isnan(cov_matrix)):
-        st.error("Errore: Dati contengono valori non validi (NaN). Controlla gli asset.")
+        st.error("Errore: Dati contengono valori non validi (NaN). Prova meno asset.")
         st.stop()
     if len(expected_returns) != len(assets) or cov_matrix.shape != (len(assets), len(assets)):
         st.error("Errore: Dimensione dei dati non coincide con il numero di asset.")
@@ -123,10 +129,19 @@ if st.button("Calcola", type="primary"):
 
     if result.success:
         optimal_weights = result.x
+        # Separa asset allocati (peso > 0) e inseriti
+        allocated_assets = [asset for asset, weight in zip(assets, optimal_weights) if weight > 0]
+        allocated_weights = [weight for weight in optimal_weights if weight > 0]
+
+        # Colonne per asset
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("Pesi Ottimali 📊")
-            for asset, weight in zip(assets, optimal_weights):
+            st.subheader("Asset Inseriti 📋")
+            for asset in assets:
+                st.write(f"{asset}")
+        with col2:
+            st.subheader("Asset Allocati 📊")
+            for asset, weight in zip(allocated_assets, allocated_weights):
                 st.write(f"{asset}: {weight:.2%}")
 
         # Backtesting con validazione
@@ -158,23 +173,21 @@ if st.button("Calcola", type="primary"):
             }
 
         bt_results = backtest_portfolio(optimal_weights, returns, initial_investment)
-        with col2:
+        col3, col4 = st.columns(2)
+        with col3:
             st.subheader("Backtesting 📈")
             st.write(f"Rendimento Totale: {bt_results['total_return']:.2f}%")
             st.write(f"Volatilità Annuale: {bt_results['annual_volatility']:.2f}%")
             st.write(f"Max Drawdown: {bt_results['max_drawdown']:.2f}%")
             st.write(f"Sharpe Ratio: {bt_results['sharpe_ratio']:.2f}")
 
-        # Grafico a torta migliorato
-        fig1, ax1 = plt.subplots(figsize=(8, 8) if len(assets) > 5 else (6, 6))  # Dimensione adattiva
-        wedges, texts, autotexts = ax1.pie(optimal_weights, labels=None, autopct=lambda pct: f'{pct:.1f}%' if pct > 5 else '', 
-                                          startangle=90, colors=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99', '#c2c2f0', '#ffb3e6', '#c4e1e1'][:len(assets)])
+        # Grafico a torta migliorato (solo asset allocati)
+        fig1, ax1 = plt.subplots(figsize=(8, 8) if len(allocated_assets) > 5 else (6, 6))  # Dimensione adattiva
+        wedges, texts, autotexts = ax1.pie(allocated_weights, labels=None, autopct=lambda pct: f'{pct:.1f}%' if pct > 5 else '', 
+                                          startangle=90, colors=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99', '#c2c2f0', '#ffb3e6', '#c4e1e1'][:len(allocated_assets)])
         ax1.axis('equal')
-        plt.setp(autotexts, size=8, weight="bold")  # Testo percentuali più piccolo
-        if len(assets) > 5:
-            plt.legend(wedges, assets, title="Asset", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
-        else:
-            ax1.legend(wedges, assets, title="Asset", loc="best")
+        plt.setp(autotexts, size=8, weight="bold")  # Testo percentuali più piccole
+        plt.legend(wedges, allocated_assets, title="Asset Allocati", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
         st.pyplot(fig1)
 
         # Grafico crescita
@@ -205,11 +218,11 @@ if st.button("Calcola", type="primary"):
 
         mc_results = monte_carlo_simulation(optimal_weights, returns, num_simulations=100, years=1, initial_investment=initial_investment)
         st.subheader("Simulazioni Monte Carlo 🎲")
-        col3, col4 = st.columns(2)
-        with col3:
+        col5, col6 = st.columns(2)
+        with col5:
             st.write(f"Valore Medio Futuro: ${np.mean(mc_results[:, -1]):.2f}")
             st.write(f"Percentile 5% (Peggiore): ${np.percentile(mc_results[:, -1], 5):.2f}")
-        with col4:
+        with col6:
             st.write(f"Percentile 95% (Miglior): ${np.percentile(mc_results[:, -1], 95):.2f}")
 
         # Grafico Monte Carlo
@@ -223,4 +236,4 @@ if st.button("Calcola", type="primary"):
         ax3.grid(True, linestyle='--', alpha=0.7)
         st.pyplot(fig3)
     else:
-        st.error(f"Errore nell'ottimizzazione: {result.message}. Controlla i dati o prova altri asset.")
+        st.error(f"Errore nell'ottimizzazione: {result.message}. Controlla i dati o prova meno asset.")
