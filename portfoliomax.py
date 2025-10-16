@@ -129,7 +129,34 @@ if st.button("Calcola", type="primary"):
             for asset, weight in zip(assets, optimal_weights):
                 st.write(f"{asset}: {weight:.2%}")
 
-        # Backtesting
+        # Backtesting con validazione
+        def backtest_portfolio(optimal_weights, returns_df, initial_investment=10000):
+            if not isinstance(returns_df, pd.DataFrame) or returns_df.empty:
+                st.error("Errore: Dati di rendimento non validi.")
+                st.stop()
+            if len(optimal_weights) != len(returns_df.columns):
+                st.error(f"Errore: Numero di pesi ({len(optimal_weights)}) non corrisponde al numero di asset ({len(returns_df.columns)}).")
+                st.stop()
+            portfolio_returns = returns_df.dot(optimal_weights)
+            if np.any(np.isnan(portfolio_returns)):
+                st.error("Errore: Rendimento del portfolio contiene valori NaN.")
+                st.stop()
+            cumulative_returns = (1 + portfolio_returns).cumprod()
+            portfolio_value = initial_investment * cumulative_returns
+            
+            total_return = (portfolio_value.iloc[-1] / initial_investment - 1) * 100
+            annual_volatility = portfolio_returns.std() * np.sqrt(252) * 100
+            max_drawdown = ((cumulative_returns.cummax() - cumulative_returns) / cumulative_returns.cummax()).max() * 100
+            sharpe = (portfolio_returns.mean() * 252 - 0.02) / (portfolio_returns.std() * np.sqrt(252))
+            
+            return {
+                'total_return': total_return,
+                'annual_volatility': annual_volatility,
+                'max_drawdown': max_drawdown,
+                'sharpe_ratio': sharpe,
+                'portfolio_value': portfolio_value
+            }
+
         bt_results = backtest_portfolio(optimal_weights, returns, initial_investment)
         with col2:
             st.subheader("Backtesting 📈")
@@ -160,6 +187,22 @@ if st.button("Calcola", type="primary"):
         st.pyplot(fig2)
 
         # Monte Carlo
+        def monte_carlo_simulation(optimal_weights, returns_df, num_simulations=100, years=1, initial_investment=10000):
+            if not isinstance(returns_df, pd.DataFrame) or returns_df.empty:
+                st.error("Errore: Dati di rendimento non validi per Monte Carlo.")
+                st.stop()
+            portfolio_daily_returns = returns_df.mean()
+            portfolio_daily_volatility = returns_df.std()
+            
+            portfolio_return = np.dot(optimal_weights, portfolio_daily_returns) * 252
+            portfolio_volatility = np.sqrt(np.dot(optimal_weights.T, np.dot(returns_df.cov() * 252, optimal_weights))) / np.sqrt(252)
+            
+            daily_sim_returns = np.random.normal(portfolio_return / 252, portfolio_volatility,
+                                               (num_simulations, int(252 * years)))
+            future_values = initial_investment * np.cumprod(1 + daily_sim_returns, axis=1)
+            
+            return future_values
+
         mc_results = monte_carlo_simulation(optimal_weights, returns, num_simulations=100, years=1, initial_investment=initial_investment)
         st.subheader("Simulazioni Monte Carlo 🎲")
         col3, col4 = st.columns(2)
@@ -181,45 +224,3 @@ if st.button("Calcola", type="primary"):
         st.pyplot(fig3)
     else:
         st.error(f"Errore nell'ottimizzazione: {result.message}. Controlla i dati o prova altri asset.")
-
-# Funzione per Sharpe negativo (definita qui per evitare riferimenti circolari)
-def negative_sharpe(weights, returns, cov_matrix, risk_free_rate=0.02):
-    portfolio_return = np.dot(weights, returns)
-    portfolio_std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-    if portfolio_std == 0:  # Evita divisione per zero
-        return np.inf
-    sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_std
-    return -sharpe_ratio
-
-# Funzione per Backtesting
-def backtest_portfolio(optimal_weights, returns_df, initial_investment=10000):
-    portfolio_returns = returns_df.dot(optimal_weights)
-    cumulative_returns = (1 + portfolio_returns).cumprod()
-    portfolio_value = initial_investment * cumulative_returns
-    
-    total_return = (portfolio_value.iloc[-1] / initial_investment - 1) * 100
-    annual_volatility = portfolio_returns.std() * np.sqrt(252) * 100
-    max_drawdown = ((cumulative_returns.cummax() - cumulative_returns) / cumulative_returns.cummax()).max() * 100
-    sharpe = (portfolio_returns.mean() * 252 - 0.02) / (portfolio_returns.std() * np.sqrt(252))
-    
-    return {
-        'total_return': total_return,
-        'annual_volatility': annual_volatility,
-        'max_drawdown': max_drawdown,
-        'sharpe_ratio': sharpe,
-        'portfolio_value': portfolio_value
-    }
-
-# Funzione per Simulazione Monte Carlo
-def monte_carlo_simulation(optimal_weights, returns_df, num_simulations=100, years=1, initial_investment=10000):
-    portfolio_daily_returns = returns_df.mean()
-    portfolio_daily_volatility = returns_df.std()
-    
-    portfolio_return = np.dot(optimal_weights, portfolio_daily_returns) * 252
-    portfolio_volatility = np.sqrt(np.dot(optimal_weights.T, np.dot(returns_df.cov() * 252, optimal_weights))) / np.sqrt(252)
-    
-    daily_sim_returns = np.random.normal(portfolio_return / 252, portfolio_volatility,
-                                        (num_simulations, int(252 * years)))
-    future_values = initial_investment * np.cumprod(1 + daily_sim_returns, axis=1)
-    
-    return future_values
