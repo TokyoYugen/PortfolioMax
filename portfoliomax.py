@@ -109,19 +109,25 @@ if st.button("Calcola", type="primary"):
         st.write(f"Max Drawdown: {bt_results['max_drawdown']:.2f}%")
         st.write(f"Sharpe Ratio: {bt_results['sharpe_ratio']:.2f}")
 
-        # Grafico a torta
-        fig1, ax1 = plt.subplots()
-        ax1.pie(optimal_weights, labels=assets, autopct='%1.2f%%', startangle=90, colors=['#ff9999', '#66b3ff', '#99ff99'])
+        # Grafico a torta migliorato
+        fig1, ax1 = plt.subplots(figsize=(8, 8) if len(assets) > 5 else (6, 6))  # Dimensione adattiva
+        wedges, texts, autotexts = ax1.pie(optimal_weights, labels=None, autopct=lambda pct: f'{pct:.1f}%' if pct > 5 else '', 
+                                          startangle=90, colors=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99', '#c2c2f0', '#ffb3e6', '#c4e1e1'][:len(assets)])
         ax1.axis('equal')
+        plt.setp(autotexts, size=8, weight="bold")  # Testo percentuali più piccolo
+        if len(assets) > 5:
+            plt.legend(wedges, assets, title="Asset", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+        else:
+            ax1.legend(wedges, assets, title="Asset", loc="best")
         st.pyplot(fig1)
 
         # Grafico crescita
-        fig2, ax2 = plt.subplots()
-        ax2.plot(returns.index, bt_results['portfolio_value'])
-        ax2.set_title('Crescita del Portfolio nel Tempo')
-        ax2.set_xlabel('Data')
-        ax2.set_ylabel('Valore Portfolio ($)')
-        ax2.grid(True)
+        fig2, ax2 = plt.subplots(figsize=(10, 5))
+        ax2.plot(returns.index, bt_results['portfolio_value'], color='#66b3ff', linewidth=2)
+        ax2.set_title('Crescita del Portfolio nel Tempo', fontsize=12, pad=10)
+        ax2.set_xlabel('Data', fontsize=10)
+        ax2.set_ylabel('Valore Portfolio ($)', fontsize=10)
+        ax2.grid(True, linestyle='--', alpha=0.7)
         st.pyplot(fig2)
 
         # Monte Carlo
@@ -132,14 +138,14 @@ if st.button("Calcola", type="primary"):
         st.write(f"Percentile 95% (Miglior Caso): ${np.percentile(mc_results[:, -1], 95):.2f}")
 
         # Grafico Monte Carlo
-        fig3, ax3 = plt.subplots()
+        fig3, ax3 = plt.subplots(figsize=(10, 5))
         ax3.plot(mc_results.T, color='gray', alpha=0.1)
         ax3.plot(np.mean(mc_results, axis=0), color='red', lw=2, label='Media')
-        ax3.set_title('Simulazioni Monte Carlo del Portfolio (1 Anno)')
-        ax3.set_xlabel('Giorno')
-        ax3.set_ylabel('Valore Portfolio ($)')
+        ax3.set_title('Simulazioni Monte Carlo del Portfolio (1 Anno)', fontsize=12, pad=10)
+        ax3.set_xlabel('Giorno', fontsize=10)
+        ax3.set_ylabel('Valore Portfolio ($)', fontsize=10)
         ax3.legend()
-        ax3.grid(True)
+        ax3.grid(True, linestyle='--', alpha=0.7)
         st.pyplot(fig3)
     else:
         st.error("Errore nell'ottimizzazione. Controlla i dati o prova altri asset.")
