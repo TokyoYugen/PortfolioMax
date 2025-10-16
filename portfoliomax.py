@@ -8,6 +8,22 @@ import matplotlib.pyplot as plt
 # Configurazione pagina per un aspetto moderno
 st.set_page_config(page_title="PortfolioMax", page_icon="📈", layout="wide", initial_sidebar_state="expanded")
 
+# Descrizione introduttiva
+st.title("PortfolioMax - Ottimizza il Tuo Investimento 📈")
+st.write("""
+Benvenuto su **PortfolioMax**, il tuo strumento semplice per ottimizzare un portfolio di investimenti!  
+Questa app ti aiuta a decidere come distribuire il tuo denaro tra diversi asset (come azioni o oro) per massimizzare i rendimenti e ridurre i rischi, basandosi su dati reali degli ultimi 5 anni.  
+### Come Usarla:
+1. **Inserisci gli Asset**: Scrivi i simboli degli asset (es. TSLA, MSFT, GLD) separati da virgole.
+2. **Scegli l'Importo**: Nella barra laterale, imposta quanto vuoi investire (da 1.000$ a 1.000.000$).
+3. **Calcola**: Clicca il bottone "Calcola" per vedere i risultati.
+### Cosa Otterrai:
+- **Pesi Ottimali**: La percentuale di ogni asset nel tuo portfolio per il miglior equilibrio rischio/rendimento.
+- **Backtesting**: Quanto potrebbe essere cresciuto il tuo investimento negli ultimi 5 anni.
+- **Simulazioni Future**: Previsioni sul valore futuro del tuo portfolio con il metodo Monte Carlo.
+Prova con TSLA, MSFT e GLD per iniziare, e scopri come ottimizzare i tuoi investimenti in modo facile e veloce!
+""")
+
 # Funzione per Sharpe negativo
 def negative_sharpe(weights, returns, cov_matrix, risk_free_rate=0.02):
     portfolio_return = np.dot(weights, returns)
