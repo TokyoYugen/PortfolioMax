@@ -5,6 +5,9 @@ import yfinance as yf
 import streamlit as st
 import matplotlib.pyplot as plt
 
+# Configurazione pagina per un aspetto moderno
+st.set_page_config(page_title="PortfolioMax", page_icon="📈", layout="wide", initial_sidebar_state="expanded")
+
 # Funzione per Sharpe negativo
 def negative_sharpe(weights, returns, cov_matrix, risk_free_rate=0.02):
     portfolio_return = np.dot(weights, returns)
@@ -45,14 +48,19 @@ def monte_carlo_simulation(optimal_weights, returns_df, num_simulations=100, yea
     
     return future_values
 
-# Interfaccia Streamlit
-st.title("PortfolioMax - Ottimizzazione Portfolio")
+# Sidebar per impostazioni personalizzate
+with st.sidebar:
+    st.header("Impostazioni")
+    initial_investment = st.number_input("Importo da Investire ($)", min_value=1000.0, max_value=1000000.0, value=10000.0, step=1000.0)
+    st.info("Scegli l'importo da investire per personalizzare i calcoli.")
+
+# Interfaccia Principale
 st.write("Inserisci gli asset separati da virgola (es. TSLA, MSFT, GLD) e ottieni l'allocazione ottimale.")
 
 assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD")
 assets = [asset.strip() for asset in assets_input.split(',')]
 
-if st.button("Calcola"):
+if st.button("Calcola", type="primary"):
     # Scarica dati
     with st.spinner("Sto scaricando dati reali..."):
         try:
@@ -89,13 +97,13 @@ if st.button("Calcola"):
 
     if result.success:
         optimal_weights = result.x
-        st.write("\nPesi Ottimali per il Portfolio (basati su dati reali ultimi 5 anni):")
+        st.subheader("Pesi Ottimali per il Portfolio (basati su dati reali ultimi 5 anni)")
         for asset, weight in zip(assets, optimal_weights):
             st.write(f"{asset}: {weight:.2%}")
 
         # Backtesting
-        bt_results = backtest_portfolio(optimal_weights, returns)
-        st.write("\nRisultati Backtesting (su $10.000 investiti):")
+        bt_results = backtest_portfolio(optimal_weights, returns, initial_investment)
+        st.subheader("Risultati Backtesting (su $" + str(initial_investment) + " investiti)")
         st.write(f"Rendimento Totale: {bt_results['total_return']:.2f}%")
         st.write(f"Volatilità Annuale: {bt_results['annual_volatility']:.2f}%")
         st.write(f"Max Drawdown: {bt_results['max_drawdown']:.2f}%")
@@ -117,8 +125,8 @@ if st.button("Calcola"):
         st.pyplot(fig2)
 
         # Monte Carlo
-        mc_results = monte_carlo_simulation(optimal_weights, returns, num_simulations=100, years=1)
-        st.write("\nRisultati Simulazione Monte Carlo (1 anno, 100 scenari):")
+        mc_results = monte_carlo_simulation(optimal_weights, returns, num_simulations=100, years=1, initial_investment=initial_investment)
+        st.subheader("Risultati Simulazione Monte Carlo (1 anno, 100 scenari)")
         st.write(f"Valore Medio Futuro: ${np.mean(mc_results[:, -1]):.2f}")
         st.write(f"Percentile 5% (Peggiore Caso): ${np.percentile(mc_results[:, -1], 5):.2f}")
         st.write(f"Percentile 95% (Miglior Caso): ${np.percentile(mc_results[:, -1], 95):.2f}")
