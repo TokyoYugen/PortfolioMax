@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # Installa streamlit-icons se non l'hai fatto (esegui localmente: pip install streamlit-icons)
 from streamlit_extras.let_it_rain import rain
 
-# Configurazione pagina con layout moderno (senza theme="dark")
+# Configurazione pagina con layout moderno
 st.set_page_config(
     page_title="PortfolioMax",
     page_icon="💰",
@@ -84,20 +84,34 @@ if st.button("Calcola", type="primary"):
             st.error(f"Errore nel download: {e}")
             st.stop()
 
-    # Calcola rendimenti
+    # Calcola rendimenti con validazioni
     returns = data.pct_change(fill_method=None).dropna()
     if len(returns) < 2 or np.any(returns.isna()):
-        st.error("Errore: Dati insufficienti o non validi.")
+        st.error("Errore: Dati insufficienti o non validi dopo il download.")
         st.stop()
 
     expected_returns = returns.mean() * 252
     cov_matrix = returns.cov() * 252
+
+    # Validazione dati
     if np.any(np.isnan(expected_returns)) or np.any(np.isnan(cov_matrix)):
-        st.error("Errore: Dati non validi.")
+        st.error("Errore: Dati contengono valori non validi (NaN). Controlla gli asset.")
+        st.stop()
+    if len(expected_returns) != len(assets) or cov_matrix.shape != (len(assets), len(assets)):
+        st.error("Errore: Dimensione dei dati non coincide con il numero di asset.")
         st.stop()
 
     expected_returns = expected_returns.values
     cov_matrix = cov_matrix.values
+
+    # Funzione per Sharpe negativo
+    def negative_sharpe(weights, returns, cov_matrix, risk_free_rate=0.02):
+        portfolio_return = np.dot(weights, returns)
+        portfolio_std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+        if portfolio_std == 0:  # Evita divisione per zero
+            return np.inf
+        sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_std
+        return -sharpe_ratio
 
     # Ottimizzazione
     constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
@@ -166,4 +180,46 @@ if st.button("Calcola", type="primary"):
         ax3.grid(True, linestyle='--', alpha=0.7)
         st.pyplot(fig3)
     else:
-        st.error("Errore nell'ottimizzazione. Controlla i dati o prova altri asset.")
+        st.error(f"Errore nell'ottimizzazione: {result.message}. Controlla i dati o prova altri asset.")
+
+# Funzione per Sharpe negativo (definita qui per evitare riferimenti circolari)
+def negative_sharpe(weights, returns, cov_matrix, risk_free_rate=0.02):
+    portfolio_return = np.dot(weights, returns)
+    portfolio_std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+    if portfolio_std == 0:  # Evita divisione per zero
+        return np.inf
+    sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_std
+    return -sharpe_ratio
+
+# Funzione per Backtesting
+def backtest_portfolio(optimal_weights, returns_df, initial_investment=10000):
+    portfolio_returns = returns_df.dot(optimal_weights)
+    cumulative_returns = (1 + portfolio_returns).cumprod()
+    portfolio_value = initial_investment * cumulative_returns
+    
+    total_return = (portfolio_value.iloc[-1] / initial_investment - 1) * 100
+    annual_volatility = portfolio_returns.std() * np.sqrt(252) * 100
+    max_drawdown = ((cumulative_returns.cummax() - cumulative_returns) / cumulative_returns.cummax()).max() * 100
+    sharpe = (portfolio_returns.mean() * 252 - 0.02) / (portfolio_returns.std() * np.sqrt(252))
+    
+    return {
+        'total_return': total_return,
+        'annual_volatility': annual_volatility,
+        'max_drawdown': max_drawdown,
+        'sharpe_ratio': sharpe,
+        'portfolio_value': portfolio_value
+    }
+
+# Funzione per Simulazione Monte Carlo
+def monte_carlo_simulation(optimal_weights, returns_df, num_simulations=100, years=1, initial_investment=10000):
+    portfolio_daily_returns = returns_df.mean()
+    portfolio_daily_volatility = returns_df.std()
+    
+    portfolio_return = np.dot(optimal_weights, portfolio_daily_returns) * 252
+    portfolio_volatility = np.sqrt(np.dot(optimal_weights.T, np.dot(returns_df.cov() * 252, optimal_weights))) / np.sqrt(252)
+    
+    daily_sim_returns = np.random.normal(portfolio_return / 252, portfolio_volatility,
+                                        (num_simulations, int(252 * years)))
+    future_values = initial_investment * np.cumprod(1 + daily_sim_returns, axis=1)
+    
+    return future_values
