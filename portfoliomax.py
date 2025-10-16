@@ -8,16 +8,15 @@ import matplotlib.pyplot as plt
 # Installa streamlit-icons se non l'hai fatto (esegui localmente: pip install streamlit-icons)
 from streamlit_extras.let_it_rain import rain
 
-# Configurazione pagina con tema scuro e layout moderno
+# Configurazione pagina con layout moderno (senza theme="dark")
 st.set_page_config(
     page_title="PortfolioMax",
     page_icon="💰",
     layout="wide",
-    initial_sidebar_state="expanded",
-    theme="dark"  # Tema scuro
+    initial_sidebar_state="expanded"
 )
 
-# Funzione personalizzata per stile
+# Funzione personalizzata per stile scuro con CSS
 def set_custom_style():
     st.markdown("""
         <style>
@@ -68,7 +67,7 @@ with st.sidebar:
     st.image("https://via.placeholder.com/150", caption="Logo PortfolioMax", use_column_width=True)  # Placeholder per logo
 
 # Interfaccia Principale
-st.write("Inserisci gli asset separati da virgola (es. TSLA, MSFT, GLD) e ottieni l'allocazione ottimale.")
+st.write("Inserisci gli asset separati da virgole (es. TSLA, MSFT, GLD) e ottieni l'allocazione ottimale.")
 
 assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD", help="Esempi: TSLA, MSFT, GLD, NVDA")
 assets = [asset.strip() for asset in assets_input.split(',')]
