@@ -129,9 +129,12 @@ if st.button("Calcola", type="primary"):
 
     if result.success:
         optimal_weights = result.x
-        # Separa asset allocati (peso > 0) e inseriti
-        allocated_assets = [asset for asset, weight in zip(assets, optimal_weights) if weight > 0]
-        allocated_weights = [weight for weight in optimal_weights if weight > 0]
+        # Separa asset allocati (peso > 0)
+        allocated_assets = [asset for asset, weight in zip(assets, optimal_weights) if weight > 0.0001]  # Tolleranza per arrotondamenti
+        allocated_weights = [weight for weight in optimal_weights if weight > 0.0001]
+        if not allocated_assets:
+            st.warning("Nessun asset allocato con peso positivo. Controlla i dati o gli asset.")
+            st.stop()
 
         # Colonne per asset
         col1, col2 = st.columns(2)
@@ -139,6 +142,7 @@ if st.button("Calcola", type="primary"):
             st.subheader("Asset Inseriti 📋")
             for asset in assets:
                 st.write(f"{asset}")
+
         with col2:
             st.subheader("Asset Allocati 📊")
             for asset, weight in zip(allocated_assets, allocated_weights):
@@ -173,20 +177,18 @@ if st.button("Calcola", type="primary"):
             }
 
         bt_results = backtest_portfolio(optimal_weights, returns, initial_investment)
-        col3, col4 = st.columns(2)
-        with col3:
-            st.subheader("Backtesting 📈")
-            st.write(f"Rendimento Totale: {bt_results['total_return']:.2f}%")
-            st.write(f"Volatilità Annuale: {bt_results['annual_volatility']:.2f}%")
-            st.write(f"Max Drawdown: {bt_results['max_drawdown']:.2f}%")
-            st.write(f"Sharpe Ratio: {bt_results['sharpe_ratio']:.2f}")
+        st.subheader("Backtesting 📈")
+        st.write(f"Rendimento Totale: {bt_results['total_return']:.2f}%")
+        st.write(f"Volatilità Annuale: {bt_results['annual_volatility']:.2f}%")
+        st.write(f"Max Drawdown: {bt_results['max_drawdown']:.2f}%")
+        st.write(f"Sharpe Ratio: {bt_results['sharpe_ratio']:.2f}")
 
-        # Grafico a torta migliorato (solo asset allocati)
+        # Grafico a torta migliorato
         fig1, ax1 = plt.subplots(figsize=(8, 8) if len(allocated_assets) > 5 else (6, 6))  # Dimensione adattiva
         wedges, texts, autotexts = ax1.pie(allocated_weights, labels=None, autopct=lambda pct: f'{pct:.1f}%' if pct > 5 else '', 
                                           startangle=90, colors=['#ff9999', '#66b3ff', '#99ff99', '#ffcc99', '#c2c2f0', '#ffb3e6', '#c4e1e1'][:len(allocated_assets)])
         ax1.axis('equal')
-        plt.setp(autotexts, size=8, weight="bold")  # Testo percentuali più piccole
+        plt.setp(autotexts, size=8, weight="bold")  # Testo percentuali più piccolo
         plt.legend(wedges, allocated_assets, title="Asset Allocati", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
         st.pyplot(fig1)
 
@@ -200,29 +202,13 @@ if st.button("Calcola", type="primary"):
         st.pyplot(fig2)
 
         # Monte Carlo
-        def monte_carlo_simulation(optimal_weights, returns_df, num_simulations=100, years=1, initial_investment=10000):
-            if not isinstance(returns_df, pd.DataFrame) or returns_df.empty:
-                st.error("Errore: Dati di rendimento non validi per Monte Carlo.")
-                st.stop()
-            portfolio_daily_returns = returns_df.mean()
-            portfolio_daily_volatility = returns_df.std()
-            
-            portfolio_return = np.dot(optimal_weights, portfolio_daily_returns) * 252
-            portfolio_volatility = np.sqrt(np.dot(optimal_weights.T, np.dot(returns_df.cov() * 252, optimal_weights))) / np.sqrt(252)
-            
-            daily_sim_returns = np.random.normal(portfolio_return / 252, portfolio_volatility,
-                                               (num_simulations, int(252 * years)))
-            future_values = initial_investment * np.cumprod(1 + daily_sim_returns, axis=1)
-            
-            return future_values
-
         mc_results = monte_carlo_simulation(optimal_weights, returns, num_simulations=100, years=1, initial_investment=initial_investment)
         st.subheader("Simulazioni Monte Carlo 🎲")
-        col5, col6 = st.columns(2)
-        with col5:
+        col3, col4 = st.columns(2)
+        with col3:
             st.write(f"Valore Medio Futuro: ${np.mean(mc_results[:, -1]):.2f}")
             st.write(f"Percentile 5% (Peggiore): ${np.percentile(mc_results[:, -1], 5):.2f}")
-        with col6:
+        with col4:
             st.write(f"Percentile 95% (Miglior): ${np.percentile(mc_results[:, -1], 95):.2f}")
 
         # Grafico Monte Carlo
