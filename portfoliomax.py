@@ -25,14 +25,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === 3. CREDENZIALI INCORPORATE NEL CODICE (NO FILE!) ===
+# === 3. CREDENZIALI CON PASSWORD HASHATA (password123) ===
 config = {
     'credentials': {
         'usernames': {
             'testuser': {
                 'email': 'test@example.com',
                 'name': 'Test User',
-                'password': 'password123'
+                'password': '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW'  # password123
             }
         }
     },
@@ -72,16 +72,22 @@ authenticator.logout('Logout', 'main')
 
 # === APP ===
 st.title("PortfolioMax - Ottimizza il Tuo Investimento")
-st.write("Inserisci gli asset, scegli l'importo e ottieni l'allocazione ottimale.")
+st.write("""
+Benvenuto su **PortfolioMax**, il tuo strumento per ottimizzare un portfolio di investimenti!  
+Inserisci gli asset, scegli l'importo e ottieni l'allocazione ottimale.
+""")
 rain(emoji="Money Bag", font_size=20, falling_speed=5, animation_length=1)
 
+# Sidebar
 with st.sidebar:
     st.header("Impostazioni")
-    initial_investment = st.number_input("Importo ($)", 1000.0, 1000000.0, 10000.0, 1000.0)
-    st.image("https://via.placeholder.com/150", caption="Logo")
+    initial_investment = st.number_input("Importo da Investire ($)", min_value=1000.0, max_value=1000000.0, value=10000.0, step=1000.0)
+    st.image("https://via.placeholder.com/150", caption="Logo PortfolioMax")
 
-assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD")
-assets = [a.strip() for a in assets_input.split(',')]
+# Input asset
+st.write("Inserisci gli asset separati da virgola (es. TSLA, MSFT, GLD)")
+assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD", help="Esempi: TSLA, MSFT, GLD, NVDA. Usa SLV per argento.")
+assets = [asset.strip() for asset in assets_input.split(',')]
 
 if st.button("Calcola", type="primary"):
     # --- DOWNLOAD DATI ---
@@ -185,7 +191,7 @@ if st.button("Calcola", type="primary"):
         return inv * np.cumprod(1 + sim, axis=1)
     mc = monte_carlo(weights, returns, initial_investment)
 
-    st.subheader("Simulazioni Monte Carlo")
+    st.sub Inclusion("Simulazioni Monte Carlo")
     col3, col4 = st.columns(2)
     with col3:
         st.write(f"Valore Medio: ${np.mean(mc[:, -1]):.2f}")
