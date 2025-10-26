@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from streamlit_extras.let_it_rain import rain
 import streamlit_authenticator as stauth
 import yaml
+from yaml.loader import SafeLoader
 
 # === 1. CONFIGURAZIONE PAGINA ===
 st.set_page_config(
@@ -16,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === 2. STILE CSS ===
+# === 2. STILE CSS SCURO ===
 st.markdown("""
     <style>
     .stApp { background-color: #1e1e1e; color: #ffffff; }
@@ -26,26 +27,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === 3. CREDENZIALI IN CHIARO (Streamlit Cloud richiede hashing al primo login) ===
-config = {
-    'credentials': {
-        'usernames': {
-            'testuser': {
-                'email': 'test@example.com',
-                'name': 'Test User',
-                'password': 'password123'  # IN CHIARO!
-            }
-        }
-    },
-    'cookie': {
-        'expiry_days': 30,
-        'key': 'my_secret_key_2025',
-        'name': 'portfoliomax_cookie'
-    }
-    # RIMOSSO preauthorized → non supportato con dizionario
-}
+# === 3. CARICA credentials.yaml ===
+try:
+    with open('credentials.yaml') as file:
+        config = yaml.load(file, Loader=SafeLoader)
+except FileNotFoundError:
+    st.error("ERRORE: File `credentials.yaml` non trovato nella cartella del progetto!")
+    st.stop()
 
-# === 4. AUTENTICAZIONE (senza preauthorized) ===
+# === 4. AUTENTICAZIONE ===
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
@@ -60,7 +50,6 @@ name, authentication_status, username = authenticator.login(location='main')
 if authentication_status == False:
     st.error('Username o password errati.')
     st.stop()
-
 if authentication_status is None:
     st.warning('Inserisci le credenziali.')
     st.stop()
@@ -90,25 +79,25 @@ assets = [asset.strip() for asset in assets_input.split(',')]
 
 if st.button("Calcola", type="primary"):
     # --- DOWNLOAD DATI ---
-    with st.spinner("Scarico dati..."):
+    with st.spinner("Scarico dati da Yahoo Finance..."):
         try:
             data = yf.download(assets, period='5y', auto_adjust=False)['Close']
             empty_assets = [a for a in assets if data[a].isna().all()]
             if empty_assets:
                 st.warning(f"Asset non validi: {', '.join(empty_assets)}. Proseguo con gli altri.")
-                data = data.drop(columns=empty_assets)
+                data = data.dropna(axis=1, how='all')
                 assets = [a for a in assets if a not in empty_assets]
             if len(assets) < 2:
                 st.error("Errore: servono almeno 2 asset validi.")
                 st.stop()
         except Exception as e:
-            st.error(f"Errore download: {e}")
+            st.error(f"Errore nel download: {e}")
             st.stop()
 
     # --- RENDIMENTI ---
     returns = data.pct_change().dropna()
     if len(returns) < 2:
-        st.error("Dati insufficienti.")
+        st.error("Dati insufficienti dopo il download.")
         st.stop()
 
     expected_returns = returns.mean() * 252
@@ -162,22 +151,27 @@ if st.button("Calcola", type="primary"):
 
     st.subheader("Backtesting")
     st.write(f"Rendimento Totale: {bt['total_return']:.2f}%")
-    st.write(f"Volatilità: {bt['annual_volatility']:.2f}%")
+    st.write(f"Volatilità Annuale: {bt['annual_volatility']:.2f}%")
     st.write(f"Max Drawdown: {bt['max_drawdown']:.2f}%")
-    st.write(f"Sharpe: {bt['sharpe_ratio']:.2f}")
+    st.write(f"Sharpe Ratio: {bt['sharpe_ratio']:.2f}")
 
     # --- GRAFICO A TORTA ---
-    fig1, ax1 = plt.subplots()
-    ax1.pie(allocated_weights, autopct=lambda p: f'{p:.1f}%' if p > 5 else '',
-            startangle=90, colors=plt.cm.Pastel1.colors)
+    fig1, ax1 = plt.subplots(figsize=(6, 6))
+    wedges, texts, autotexts = ax1.pie(
+        allocated_weights,
+        autopct=lambda p: f'{p:.1f}%' if p > 5 else '',
+        startangle=90,
+        colors=plt.cm.Pastel1.colors
+    )
     ax1.axis('equal')
-    plt.legend(allocated_assets, title="Asset Allocati", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
+    plt.legend(wedges, allocated_assets, title="Asset Allocati", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
     st.pyplot(fig1)
 
     # --- GRAFICO CRESCITA ---
-    fig2, ax2 = plt.subplots()
-    ax2.plot(bt['portfolio_value'], color='#66b3ff')
-    ax2.set_title('Crescita del Portfolio')
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
+    ax2.plot(bt['portfolio_value'], color='#66b3ff', linewidth=2)
+    ax2.set_title('Crescita del Portfolio', fontsize=14)
+    ax2.set_xlabel('Data')
     ax2.set_ylabel('Valore ($)')
     ax2.grid(True, linestyle='--', alpha=0.7)
     st.pyplot(fig2)
@@ -186,22 +180,24 @@ if st.button("Calcola", type="primary"):
     def monte_carlo(w, r, inv, sims=100, years=1):
         mu = np.dot(w, r.mean()) * 252
         sigma = np.sqrt(np.dot(w.T, np.dot(r.cov()*252, w)))
-        sim = np.random.normal(mu/252, sigma/np.sqrt(252), (sims, int(252*years)))
-        return inv * np.cumprod(1 + sim, axis=1)
-    mc = monte_carlo(weights, returns, initial_investment)
+        daily_sim = np.random.normal(mu/252, sigma/np.sqrt(252), (sims, int(252*years)))
+        return inv * np.cumprod(1 + daily_sim, axis=1)
+
+    mc_results = monte_carlo(weights, returns, initial_investment)
 
     st.subheader("Simulazioni Monte Carlo")
     col3, col4 = st.columns(2)
     with col3:
-        st.write(f"Valore Medio: ${np.mean(mc[:, -1]):.2f}")
-        st.write(f"5° Percentile: ${np.percentile(mc[:, -1], 5):.2f}")
+        st.write(f"Valore Medio Futuro: ${np.mean(mc_results[:, -1]):,.0f}")
+        st.write(f"5° Percentile (Peggiore): ${np.percentile(mc_results[:, -1], 5):,.0f}")
     with col4:
-        st.write(f"95° Percentile: ${np.percentile(mc[:, -1], 95):.2f}")
+        st.write(f"95° Percentile (Migliore): ${np.percentile(mc_results[:, -1], 95):,.0f}")
 
-    fig3, ax3 = plt.subplots()
-    ax3.plot(mc.T, color='gray', alpha=0.1)
-    ax3.plot(np.mean(mc, axis=0), color='red', lw=2, label='Media')
-    ax3.set_title('Simulazioni Monte Carlo')
+    fig3, ax3 = plt.subplots(figsize=(10, 5))
+    ax3.plot(mc_results.T, color='gray', alpha=0.1)
+    ax3.plot(np.mean(mc_results, axis=0), color='red', linewidth=2, label='Media')
+    ax3.set_title('Simulazioni Monte Carlo (1 anno)')
+    ax3.set_xlabel('Giorno')
     ax3.set_ylabel('Valore ($)')
     ax3.legend()
     ax3.grid(True, linestyle='--', alpha=0.7)
