@@ -9,11 +9,19 @@ import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 
-# Carica il file credentials.yaml
+# === CONFIGURAZIONE PAGINA (PRIMA DI TUTTO!) ===
+st.set_page_config(
+    page_title="PortfolioMax",
+    page_icon="Money Bag",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# === CARICA CREDENZIALI ===
 with open('credentials.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
-# Crea l'autenticatore
+# === AUTENTICAZIONE ===
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
@@ -22,7 +30,7 @@ authenticator = stauth.Authenticate(
     config['preauthorized']
 )
 
-# Login
+# === LOGIN ===
 name, authentication_status, username = authenticator.login(location='main')
 # Configurazione pagina
 st.set_page_config(
