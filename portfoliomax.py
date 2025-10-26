@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from streamlit_extras.let_it_rain import rain
 import streamlit_authenticator as stauth
 
-# === 1. CONFIGURAZIONE PAGINA ===
+# === 1. CONFIGURAZIONE PAGINA (PRIMA DI TUTTO!) ===
 st.set_page_config(
     page_title="PortfolioMax",
     page_icon="Money Bag",
@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === 2. STILE CSS ===
+# === 2. STILE CSS SCURO ===
 st.markdown("""
     <style>
     .stApp { background-color: #1e1e1e; color: #ffffff; }
@@ -62,6 +62,7 @@ name, authentication_status, username = authenticator.login(location='main')
 if authentication_status == False:
     st.error('Username o password errati.')
     st.stop()
+
 if authentication_status is None:
     st.warning('Inserisci le credenziali.')
     st.stop()
@@ -191,7 +192,7 @@ if st.button("Calcola", type="primary"):
         return inv * np.cumprod(1 + sim, axis=1)
     mc = monte_carlo(weights, returns, initial_investment)
 
-    st.sub Inclusion("Simulazioni Monte Carlo")
+    st.subheader("Simulazioni Monte Carlo")
     col3, col4 = st.columns(2)
     with col3:
         st.write(f"Valore Medio: ${np.mean(mc[:, -1]):.2f}")
