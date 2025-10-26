@@ -9,7 +9,7 @@ import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 
-# === CONFIGURAZIONE PAGINA (PRIMA DI TUTTO!) ===
+# === 1. CONFIGURAZIONE PAGINA (PRIMA DI TUTTO!) ===
 st.set_page_config(
     page_title="PortfolioMax",
     page_icon="Money Bag",
@@ -17,11 +17,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === CARICA CREDENZIALI ===
+# === 2. STILE CSS (dopo set_page_config) ===
+st.markdown("""
+    <style>
+    .stApp { background-color: #1e1e1e; color: #ffffff; }
+    .stButton>button { background-color: #4CAF50; color: white; border-radius: 10px; padding: 10px 20px; }
+    .stButton>button:hover { background-color: #45a049; }
+    .stTextInput>div>input { background-color: #2e2e2e; color: #ffffff; border-radius: 5px; }
+    </style>
+""", unsafe_allow_html=True)
+
+# === 3. CARICA CREDENZIALI ===
 with open('credentials.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
-# === AUTENTICAZIONE ===
+# === 4. AUTENTICAZIONE ===
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
@@ -30,15 +40,8 @@ authenticator = stauth.Authenticate(
     config['preauthorized']
 )
 
-# === LOGIN ===
+# === 5. LOGIN ===
 name, authentication_status, username = authenticator.login(location='main')
-# Configurazione pagina
-st.set_page_config(
-    page_title="PortfolioMax",
-    page_icon="💰",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # Stile CSS scuro
 def set_custom_style():
