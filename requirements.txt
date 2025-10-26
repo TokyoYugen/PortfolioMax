@@ -5,3 +5,4 @@ yfinance
 matplotlib
 streamlit==1.30.0
 streamlit-extras
+streamlit-authenticator
