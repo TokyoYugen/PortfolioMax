@@ -6,8 +6,9 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from streamlit_extras.let_it_rain import rain
 import streamlit_authenticator as stauth
+import yaml
 
-# === 1. CONFIGURAZIONE PAGINA (PRIMA DI TUTTO!) ===
+# === 1. CONFIGURAZIONE PAGINA ===
 st.set_page_config(
     page_title="PortfolioMax",
     page_icon="Money Bag",
@@ -15,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === 2. STILE CSS SCURO ===
+# === 2. STILE CSS ===
 st.markdown("""
     <style>
     .stApp { background-color: #1e1e1e; color: #ffffff; }
@@ -25,14 +26,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === 3. CREDENZIALI CON PASSWORD HASHATA (password123) ===
+# === 3. CREDENZIALI IN CHIARO (Streamlit Cloud richiede hashing al primo login) ===
 config = {
     'credentials': {
         'usernames': {
             'testuser': {
                 'email': 'test@example.com',
                 'name': 'Test User',
-                'password': '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW'  # password123
+                'password': 'password123'  # IN CHIARO!
             }
         }
     },
@@ -40,19 +41,16 @@ config = {
         'expiry_days': 30,
         'key': 'my_secret_key_2025',
         'name': 'portfoliomax_cookie'
-    },
-    'preauthorized': {
-        'emails': ['test@example.com']
     }
+    # RIMOSSO preauthorized → non supportato con dizionario
 }
 
-# === 4. AUTENTICAZIONE ===
+# === 4. AUTENTICAZIONE (senza preauthorized) ===
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
     config['cookie']['key'],
-    config['cookie']['expiry_days'],
-    config['preauthorized']
+    config['cookie']['expiry_days']
 )
 
 # === 5. LOGIN ===
@@ -98,9 +96,9 @@ if st.button("Calcola", type="primary"):
             empty_assets = [a for a in assets if data[a].isna().all()]
             if empty_assets:
                 st.warning(f"Asset non validi: {', '.join(empty_assets)}. Proseguo con gli altri.")
-                data = data.dropna(axis=1, how='all')
+                data = data.drop(columns=empty_assets)
                 assets = [a for a in assets if a not in empty_assets]
-            if data.shape[1] < 2:
+            if len(assets) < 2:
                 st.error("Errore: servono almeno 2 asset validi.")
                 st.stop()
         except Exception as e:
