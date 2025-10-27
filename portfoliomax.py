@@ -5,9 +5,8 @@ import yfinance as yf
 import streamlit as st
 import matplotlib.pyplot as plt
 from streamlit_extras.let_it_rain import rain
-import streamlit_authenticator as stauth
 
-# === CONFIGURAZIONE PAGINA ===
+# === 1. CONFIGURAZIONE PAGINA ===
 st.set_page_config(
     page_title="PortfolioMax",
     page_icon="Money Bag",
@@ -15,128 +14,213 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === STILE CSS ===
+# === 2. STILE CSS SCURO ===
 st.markdown("""
     <style>
     .stApp { background-color: #1e1e1e; color: #ffffff; }
     .stButton>button { background-color: #4CAF50; color: white; border-radius: 10px; padding: 10px 20px; }
     .stButton>button:hover { background-color: #45a049; }
     .stTextInput>div>input { background-color: #2e2e2e; color: #ffffff; border-radius: 5px; }
+    .stNumberInput>div>input { background-color: #2e2e2e; color: #ffffff; border-radius: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
-# === CREDENZIALI CON PASSWORD GIA' HASHATA (password123) ===
-config = {
-    'credentials': {
-        'usernames': {
-            'testuser': {
-                'email': 'test@example.com',
-                'name': 'Test User',
-                'password': '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW'
-            }
-        }
-    },
-    'cookie': {
-        'expiry_days': 30,
-        'key': 'random_signature_key_2025',
-        'name': 'portfoliomax_auth'
-    }
-    # NESSUN preauthorized → causa errori su Cloud
-}
+# === 3. INIZIALIZZA SESSIONE ===
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
-# === AUTENTICAZIONE ===
-authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days']
-)
+# === 4. FUNZIONE LOGIN SEMPLICE (FUNZIONA SU STREAMLIT CLOUD) ===
+def login():
+    st.markdown("### PortfolioMax - Accesso")
+    st.write("Accedi per usare l'app.")
+    username = st.text_input("Username", placeholder="es. testuser")
+    password = st.text_input("Password", type="password", placeholder="es. password123")
+    
+    if st.button("Accedi", type="primary"):
+        if username == "testuser" and password == "password123":
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.success("Accesso effettuato con successo!")
+            st.rerun()
+        else:
+            st.error("Username o password errati.")
 
-# === LOGIN ===
-name, authentication_status, username = authenticator.login('Login', 'main')
+# === 5. FUNZIONE LOGOUT ===
+def logout():
+    if st.button("Logout", type="secondary"):
+        st.session_state.logged_in = False
+        st.session_state.username = None
+        st.rerun()
 
-# === CONTROLLO LOGIN ===
-if authentication_status:
-    st.success(f"Benvenuto, {name}!")
-    authenticator.logout('Logout', 'main')
+# === 6. CONTROLLO ACCESSO ===
+if not st.session_state.logged_in:
+    login()
+    st.stop()
 
-    # === APP COMPLETA ===
-    st.title("PortfolioMax - Ottimizza il Tuo Investimento")
-    st.write("Inserisci gli asset e ottieni l’allocazione ottimale.")
-    rain(emoji="Money Bag", font_size=20, falling_speed=5, animation_length=1)
+# === 7. UTENTE LOGGATO ===
+st.success(f"Benvenuto, {st.session_state.username}!")
+logout()
 
-    with st.sidebar:
-        initial_investment = st.number_input("Importo ($)", 1000.0, 1000000.0, 10000.0, 1000.0)
+# === 8. APP COMPLETA ===
+st.title("PortfolioMax - Ottimizza il Tuo Investimento")
+st.write("""
+Benvenuto su **PortfolioMax**, il tuo strumento per ottimizzare un portfolio di investimenti!  
+Inserisci gli asset, scegli l'importo e ottieni l'allocazione ottimale.
+""")
+rain(emoji="Money Bag", font_size=20, falling_speed=5, animation_length=1)
 
-    assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD")
-    assets = [a.strip().upper() for a in assets_input.split(',')]
+# Sidebar
+with st.sidebar:
+    st.header("Impostazioni")
+    initial_investment = st.number_input("Importo da Investire ($)", min_value=1000.0, max_value=1000000.0, value=10000.0, step=1000.0)
+    st.image("https://via.placeholder.com/150", caption="Logo PortfolioMax")
 
-    if st.button("Calcola", type="primary"):
-        with st.spinner("Scarico dati..."):
-            try:
-                data = yf.download(assets, period='5y')['Close']
-                data = data.dropna(axis=1, how='all')
-                assets = data.columns.tolist()
-                if len(assets) < 2:
-                    st.error("Servono almeno 2 asset validi.")
-                    st.stop()
-            except Exception as e:
-                st.error(f"Errore download: {e}")
+# Input asset
+st.write("Inserisci gli asset separati da virgola (es. TSLA, MSFT, GLD)")
+assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD", help="Esempi: TSLA, MSFT, GLD, NVDA, AAPL. Usa SLV per argento.")
+assets = [asset.strip().upper() for asset in assets_input.split(',') if asset.strip()]
+
+if st.button("Calcola", type="primary"):
+    if len(assets) < 2:
+        st.error("Inserisci almeno 2 asset validi.")
+        st.stop()
+
+    # --- DOWNLOAD DATI ---
+    with st.spinner("Scarico dati da Yahoo Finance..."):
+        try:
+            data = yf.download(assets, period='5y', auto_adjust=False)['Close']
+            # Rimuovi asset senza dati
+            empty_assets = [a for a in assets if data[a].isna().all()]
+            if empty_assets:
+                st.warning(f"Asset non disponibili: {', '.join(empty_assets)}. Proseguo con gli altri.")
+                data = data.drop(columns=empty_assets)
+                assets = [a for a in assets if a not in empty_assets]
+            if len(assets) < 2:
+                st.error("Non ci sono abbastanza asset validi per il calcolo.")
                 st.stop()
-
-        returns = data.pct_change().dropna()
-        mu = returns.mean() * 252
-        sigma = returns.cov() * 252
-
-        def neg_sharpe(w):
-            ret = np.dot(w, mu)
-            vol = np.sqrt(np.dot(w.T, np.dot(sigma, w)))
-            return -(ret - 0.02) / vol if vol > 0 else 1e9
-
-        cons = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1},)
-        bounds = [(0, 1) for _ in assets]
-        res = minimize(neg_sharpe, [1/len(assets)]*len(assets), method='SLSQP', bounds=bounds, constraints=cons)
-
-        if not res.success:
-            st.error("Ottimizzazione fallita.")
+        except Exception as e:
+            st.error(f"Errore nel download dei dati: {e}")
             st.stop()
 
-        weights = res.x
-        alloc = [a for a, w in zip(assets, weights) if w > 0.01]
-        w_alloc = [w for w in weights if w > 0.01]
+    # --- RENDIMENTI ---
+    returns = data.pct_change().dropna()
+    if len(returns) < 50:
+        st.error("Dati storici insufficienti per un'analisi affidabile.")
+        st.stop()
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Asset Inseriti")
-            for a in assets: st.write(a)
-        with col2:
-            st.subheader("Asset Allocati")
-            for a, w in zip(alloc, w_alloc): st.write(f"{a}: {w:.1%}")
+    expected_returns = returns.mean() * 252
+    cov_matrix = returns.cov() * 252
 
-        port_val = initial_investment * (1 + returns.dot(weights)).cumprod()
-        bt_return = (port_val.iloc[-1] / initial_investment - 1) * 100
-        bt_vol = returns.dot(weights).std() * np.sqrt(252) * 100
-        st.write(f"**Rendimento**: {bt_return:.1f}% | **Volatilità**: {bt_vol:.1f}%")
+    # --- FUNZIONE OBIETTIVO: MASSIMIZZARE SHARPE RATIO ---
+    def negative_sharpe(weights, returns, cov_matrix):
+        portfolio_return = np.dot(weights, returns)
+        portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+        sharpe_ratio = (portfolio_return - 0.02) / portfolio_volatility if portfolio_volatility > 0 else -1e9
+        return -sharpe_ratio
 
-        fig1, ax1 = plt.subplots()
-        ax1.pie(w_alloc, labels=alloc, autopct='%1.0f%%')
+    # --- OTTIMIZZAZIONE ---
+    constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+    bounds = tuple((0, 1) for _ in range(len(assets)))
+    initial_guess = [1.0 / len(assets)] * len(assets)
+
+    with st.spinner("Ottimizzazione in corso..."):
+        result = minimize(
+            negative_sharpe,
+            initial_guess,
+            args=(expected_returns.values, cov_matrix.values),
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints
+        )
+
+    if not result.success:
+        st.error("Ottimizzazione fallita. Prova con asset diversi.")
+        st.stop()
+
+    weights = result.x
+    allocated_assets = [asset for asset, w in zip(assets, weights) if w > 0.001]
+    allocated_weights = [w for w in weights if w > 0.001]
+
+    # --- COLONNE ASSET ---
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Asset Inseriti")
+        for a in assets:
+            st.write(f"• {a}")
+    with col2:
+        st.subheader("Asset Allocati (Ottimale)")
+        total_alloc = sum(allocated_weights)
+        for a, w in zip(allocated_assets, allocated_weights):
+            perc = (w / total_alloc) * 100 if total_alloc > 0 else 0
+            st.write(f"**{a}**: {perc:.1f}%")
+
+    # --- BACKTEST ---
+    portfolio_returns = returns.dot(weights)
+    cumulative_returns = (1 + portfolio_returns).cumprod()
+    portfolio_value = initial_investment * cumulative_returns
+
+    total_return = (portfolio_value.iloc[-1] / initial_investment - 1) * 100
+    annual_volatility = portfolio_returns.std() * np.sqrt(252) * 100
+    max_drawdown = ((cumulative_returns.cummax() - cumulative_returns) / cumulative_returns.cummax()).max() * 100
+    sharpe_ratio = (portfolio_returns.mean() * 252 - 0.02) / (portfolio_returns.std() * np.sqrt(252)) if portfolio_returns.std() > 0 else 0
+
+    st.subheader("Backtesting (5 anni)")
+    col_a, col_b, col_c, col_d = st.columns(4)
+    with col_a:
+        st.metric("Rendimento Totale", f"{total_return:.1f}%")
+    with col_b:
+        st.metric("Volatilità Annuale", f"{annual_volatility:.1f}%")
+    with col_c:
+        st.metric("Max Drawdown", f"{max_drawdown:.1f}%")
+    with col_d:
+        st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
+
+    # --- GRAFICO A TORTA ---
+    if allocated_weights:
+        fig1, ax1 = plt.subplots(figsize=(6, 6))
+        ax1.pie(allocated_weights, labels=allocated_assets, autopct='%1.1f%%', startangle=90, colors=plt.cm.Pastel1.colors)
+        ax1.axis('equal')
         st.pyplot(fig1)
 
-        fig2, ax2 = plt.subplots()
-        ax2.plot(port_val, color='#66b3ff')
-        ax2.set_title("Crescita Portfolio")
-        st.pyplot(fig2)
+    # --- GRAFICO CRESCITA ---
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
+    ax2.plot(portfolio_value.index, portfolio_value, color='#66b3ff', linewidth=2)
+    ax2.set_title('Crescita del Portfolio (Backtest 5 anni)')
+    ax2.set_xlabel('Data')
+    ax2.set_ylabel('Valore ($)')
+    ax2.grid(True, linestyle='--', alpha=0.7)
+    st.pyplot(fig2)
 
-        sims = 50
-        mc = np.random.normal(mu @ weights / 252, np.sqrt(weights @ sigma @ weights) / np.sqrt(252), (sims, 252))
-        mc_val = initial_investment * np.cumprod(1 + mc, axis=1)
-        st.write(f"**Monte Carlo - Media finale**: ${np.mean(mc_val[:, -1]):,.0f}")
-        fig3, ax3 = plt.subplots()
-        ax3.plot(mc_val.T, color='gray', alpha=0.1)
-        ax3.plot(np.mean(mc_val, axis=0), color='red')
-        st.pyplot(fig3)
+    # --- MONTE CARLO ---
+    def monte_carlo_simulation(weights, returns, initial_investment, simulations=100, years=1):
+        mean_daily_return = returns.dot(weights).mean()
+        std_daily_return = returns.dot(weights).std()
+        sim_days = int(252 * years)
+        simulations_array = np.random.normal(mean_daily_return, std_daily_return, (simulations, sim_days))
+        portfolio_paths = initial_investment * np.cumprod(1 + simulations_array, axis=1)
+        return portfolio_paths
 
-elif authentication_status == False:
-    st.error('Username o password errati.')
-elif authentication_status is None:
-    st.warning('Inserisci le credenziali.')
+    with st.spinner("Simulazione Monte Carlo..."):
+        mc_results = monte_carlo_simulation(weights, returns, initial_investment, simulations=100, years=1)
+
+    st.subheader("Simulazioni Monte Carlo (1 anno)")
+    final_values = mc_results[:, -1]
+    col3, col4 = st.columns(2)
+    with col3:
+        st.write(f"**Valore Medio Finale**: ${np.mean(final_values):,.0f}")
+        st.write(f"**5° Percentile (Peggiore)**: ${np.percentile(final_values, 5):,.0f}")
+    with col4:
+        st.write(f"**95° Percentile (Migliore)**: ${np.percentile(final_values, 95):,.0f}")
+
+    fig3, ax3 = plt.subplots(figsize=(10, 5))
+    ax3.plot(mc_results.T, color='gray', alpha=0.1)
+    ax3.plot(np.mean(mc_results, axis=0), color='red', linewidth=2, label='Media')
+    ax3.set_title('Simulazioni Monte Carlo - 100 Scenari (1 anno)')
+    ax3.set_xlabel('Giorno')
+    ax3.set_ylabel('Valore ($)')
+    ax3.legend()
+    ax3.grid(True, linestyle='--', alpha=0.7)
+    st.pyplot(fig3)
+
+else:
+    st.info("Premi **Calcola** per ottimizzare il tuo portfolio.")
