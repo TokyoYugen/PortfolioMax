@@ -6,7 +6,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from streamlit_extras.let_it_rain import rain
 
-# === CONFIGURAZIONE PAGINA ===
+# === 1. CONFIGURAZIONE PAGINA ===
 st.set_page_config(
     page_title="PortfolioMax",
     page_icon="Money Bag",
@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === STILE CSS ===
+# === 2. STILE CSS ===
 st.markdown("""
     <style>
     .stApp { background-color: #1e1e1e; color: #ffffff; }
@@ -25,19 +25,23 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# === INIZIALIZZA SESSIONE ===
+# === 3. RESET COMPLETO DEL SESSION STATE ALL'AVVIO ===
+for key in list(st.session_state.keys()):
+    del st.session_state[key]
+
+# === 4. INIZIALIZZA VARIABILI ===
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'username' not in st.session_state:
     st.session_state.username = None
 
-# === FUNZIONE LOGIN ===
+# === 5. FUNZIONE LOGIN ===
 def login():
-    st.markdown("### PortfolioMax - Accesso")
+   _link = st.markdown("### PortfolioMax - Accesso")
     st.write("Accedi per usare l'app.")
     
-    username = st.text_input("Username", key="username_input")
-    password = st.text_input("Password", type="password", key="password_input")
+    username = st.text_input("Username", key="login_user")
+    password = st.text_input("Password", type="password", key="login_pass")
     
     if st.button("Accedi", type="primary"):
         if username == "testuser" and password == "password123":
@@ -46,25 +50,25 @@ def login():
             st.success("Accesso effettuato!")
             st.rerun()
         else:
-            st.error("Username o password errati.")
+            st.error("Username o password errati. Riprova.")
 
-# === FUNZIONE LOGOUT ===
+# === 6. FUNZIONE LOGOUT ===
 def logout():
     if st.button("Logout", type="secondary"):
         st.session_state.logged_in = False
         st.session_state.username = None
         st.rerun()
 
-# === CONTROLLO ACCESSO ===
+# === 7. CONTROLLO ACCESSO ===
 if not st.session_state.logged_in:
     login()
     st.stop()
 
-# === UTENTE LOGGATO ===
+# === 8. UTENTE LOGGATO ===
 st.success(f"Benvenuto, {st.session_state.username}!")
 logout()
 
-# === APP COMPLETA ===
+# === 9. APP COMPLETA ===
 st.title("PortfolioMax - Ottimizza il Tuo Investimento")
 st.write("Inserisci gli asset e ottieni l’allocazione ottimale.")
 rain(emoji="Money Bag", font_size=20, falling_speed=5, animation_length=1)
