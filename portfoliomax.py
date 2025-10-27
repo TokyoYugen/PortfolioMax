@@ -36,8 +36,8 @@ def login():
     st.markdown("### PortfolioMax - Accesso")
     st.write("Accedi per usare l'app.")
     
-    username = st.text_input("Username", key="login_username")
-    password = st.text_input("Password", type="password", key="login_password")
+    username = st.text_input("Username", key="username_input")
+    password = st.text_input("Password", type="password", key="password_input")
     
     if st.button("Accedi", type="primary"):
         if username == "testuser" and password == "password123":
@@ -69,13 +69,9 @@ st.title("PortfolioMax - Ottimizza il Tuo Investimento")
 st.write("Inserisci gli asset e ottieni l’allocazione ottimale.")
 rain(emoji="Money Bag", font_size=20, falling_speed=5, animation_length=1)
 
-# Sidebar
 with st.sidebar:
-    st.header("Impostazioni")
-    initial_investment = st.number_input("Importo ($)", min_value=1000.0, max_value=1000000.0, value=10000.0, step=1000.0)
+    initial_investment = st.number_input("Importo ($)", 1000.0, 1000000.0, 10000.0, 1000.0)
 
-# Input asset
-st.write("Inserisci gli asset separati da virgola (es. TSLA, MSFT, GLD)")
 assets_input = st.text_input("Asset:", "TSLA, MSFT, GLD")
 assets = [a.strip().upper() for a in assets_input.split(',') if a.strip()]
 
